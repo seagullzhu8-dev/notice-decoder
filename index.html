@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>生活通知翻译器</title>
+<style>
+:root{color-scheme:light;--ink:#192b28;--muted:#526861;--paper:#f3f5ed;--line:#d5e0d6;--green:#145342}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.65 "Instrument Sans","Microsoft YaHei",sans-serif}
+header{border-bottom:1px solid var(--line);padding:18px max(20px,calc((100% - 760px)/2));font-weight:700;white-space:nowrap}
+main{width:min(100% - 32px,760px);margin:clamp(26px,7vw,72px) auto}
+h1{font-size:clamp(32px,7vw,54px);letter-spacing:-.045em;line-height:1.14;margin:10px 0 16px}
+h2{font-size:22px;margin:0 0 8px} h3{font-size:16px;margin:22px 0 4px}
+p{margin:0 0 14px} .muted,summary{color:var(--muted)}
+.card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:clamp(18px,4vw,34px);margin-top:24px}
+.tag{color:var(--green);font-size:14px;font-weight:700}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:#fff;color:var(--green);font-weight:600;min-height:44px}
+button.primary{background:var(--green);color:#fff;border-color:var(--green)}
+button:hover{filter:brightness(.94)} button:focus-visible,summary:focus-visible,input:focus-visible{outline:3px solid #2b876b;outline-offset:3px}
+hr{border:0;border-top:1px solid var(--line);margin:24px 0}
+ol{padding-left:1.4em;margin:0} label{display:block;margin-top:10px}
+input{display:block;font:inherit;color:var(--ink);width:100%;max-width:320px;padding:8px;border:1px solid var(--line);border-radius:8px}
+summary{cursor:pointer;margin-top:12px} details p{margin-top:8px}
+textarea{width:100%;min-height:105px;padding:12px;border:1px solid var(--line);border-radius:10px;font:inherit;resize:vertical}
+.notice-text{white-space:pre-wrap;overflow-wrap:anywhere}
+[hidden]{display:none!important}
+@media(max-width:480px){.actions button{flex:1 0 100%}}
+</style>
+</head>
+<body>
+<header>生活通知翻译器</header>
+<main>
+  <nav class="actions" aria-label="页面">
+    <button class="primary" id="my-tab" aria-pressed="true">我的通知</button>
+    <button id="demo-tab" aria-pressed="false">试用示例</button>
+  </nav>
+  <section id="inbox">
+    <h1>我的通知</h1>
+    <p class="muted">每次提交一条通知，可以同时附上多张截图。识别和记录保存在当前浏览器。</p>
+    <form class="card" id="inbox-form">
+      <label for="notice-input">通知正文</label>
+      <textarea id="notice-input" placeholder="粘贴通知文字，或补充截图里的信息…" maxlength="20000"></textarea>
+      <label for="notice-images">通知截图（最多 4 张 PNG、JPG 或 WebP）</label>
+      <input id="notice-images" type="file" accept="image/png,image/jpeg,image/webp" multiple>
+      <div class="actions"><button class="primary" type="submit">提交通知</button></div>
+      <p id="inbox-status" role="status"></p>
+    </form>
+    <div id="inbox-list"></div>
+  </section>
+  <section id="demo" hidden>
+  <p class="tag">交互原型 · 校招示例</p>
+  <h1>这条通知，要现在看吗？</h1>
+  <p class="muted">用一条校招通知试试查看、跳过或把提醒带到日历。</p>
+  <section class="card" aria-labelledby="notice-title">
+    <h2 id="notice-title">杭港地铁「杭向生」校招</h2>
+    <p>面向 2027 届本科及硕士毕业生，需在网申截止前投递简历。</p>
+    <details><summary>查看示例通知</summary><p>杭港地铁面向 2027 届本科、硕士毕业生开展「杭向生」招聘。请登录招聘官网查看岗位及专业要求，选定岗位后在线提交简历。<span id="sample-deadline"></span></p></details>
+    <div class="actions" id="choices">
+      <button class="primary" id="read">现在看</button>
+      <button id="skip">直接跳过</button>
+      <button id="later">晚点再决定</button>
+    </div>
+    <div id="result" hidden>
+      <hr>
+      <h2 id="result-title" tabindex="-1"></h2>
+      <div id="checklist" hidden>
+        <h3>我要做什么？</h3>
+        <ol><li>在招聘官网进入「杭向生招聘」，核对岗位的专业和资格要求。</li><li>选定岗位并提交简历，留意后续筛选与面试安排。</li></ol>
+        <h3>最晚什么时候？</h3><p id="deadline"></p>
+        <h3>还有什么要确认？</h3><p>网申当天的关闭时刻，以及岗位是否要求附加材料。</p>
+      </div>
+      <div id="reminder" hidden>
+        <h3>日历提醒</h3><p id="suggestion"></p>
+        <div class="actions" id="reminder-actions">
+          <button class="primary" id="accept">用这个时间提醒</button>
+          <button id="change">改个时间提醒</button>
+          <button id="decline">不用提醒</button>
+        </div>
+        <form id="date-form" hidden>
+          <label for="date">选择提醒时间（北京时间）</label>
+          <input id="date" type="datetime-local" required>
+          <div class="actions"><button class="primary" type="submit">下载日历文件</button></div>
+        </form>
+      </div>
+      <p class="muted" id="status" role="status"></p>
+      <div id="calendar-fallback" hidden>
+        <p id="calendar-details"></p>
+        <button id="share-calendar" hidden>分享日历文件</button>
+      </div>
+      <button id="reset">返回三个选项</button>
+    </div>
+  </section>
+  </section>
+</main>
+<script>
+const byId = id => document.getElementById(id);
+const format = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'Asia/Shanghai', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+});
+const now = new Date();
+const year = Number(new Intl.DateTimeFormat('en', { timeZone: 'Asia/Shanghai', year: 'numeric' }).format(now));
+const originalSuggestion = new Date(year + '-11-29T18:00:00+08:00');
+const suggested = originalSuggestion - now >= 60000
+  ? originalSuggestion : new Date(Math.ceil((now.getTime() + 180000) / 60000) * 60000);
+const originalDeadline = new Date(year + '-11-30T00:00:00+08:00');
+const followingDay = new Date(suggested.getTime() + 86400000);
+const deadline = suggested < originalDeadline ? originalDeadline : new Date(new Date(followingDay.getTime() + 28800000).toISOString().slice(0, 10) + 'T00:00:00+08:00');
+const dateValue = date => new Date(date.getTime() + 28800000).toISOString().slice(0, 16);
+const displayTime = date => format.format(date) + '（北京时间）';
+const deadlineLabel = dateValue(deadline).slice(0, 10).split('-').map(Number);
+byId('deadline').textContent = '示例网申截止日期为 ' + deadlineLabel[0] + ' 年 ' + deadlineLabel[1] + ' 月 ' + deadlineLabel[2] + ' 日，具体关闭时刻待确认。';
+byId('sample-deadline').textContent = byId('deadline').textContent;
+let reminderTitle = '';
+
+function choose(choice) {
+  byId('choices').hidden = true;
+  byId('result').hidden = false;
+  byId('checklist').hidden = choice !== 'read';
+  byId('reminder').hidden = choice === 'skip';
+  byId('reminder-actions').hidden = false;
+  byId('date-form').hidden = true;
+  byId('status').textContent = '';
+  byId('calendar-fallback').hidden = true;
+  byId('result-title').textContent = {read:'行动清单',skip:'已跳过这条通知',later:'已暂缓查看'}[choice];
+  reminderTitle = choice === 'read' ? '投递杭港地铁校招简历' : '查看杭港地铁校招通知';
+  byId('suggestion').textContent = '建议在 ' + displayTime(suggested) + ' 提醒你' + reminderTitle + '。';
+  byId('result-title').focus();
+}
+
+function makeCalendar(date, title) {
+  const stamp = value => value.toISOString().replace(/[-:]|\.\d{3}/g, '');
+  const summary = title.replaceAll('\\', '\\\\').replaceAll('\n', '\\n').replaceAll(';', '\\;').replaceAll(',', '\\,');
+  return [
+    'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Notice Decoder//Calendar Demo//ZH',
+    'BEGIN:VEVENT','UID:' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2) + '@notice-decoder',
+    'DTSTAMP:' + stamp(new Date()),'DTSTART:' + stamp(date),
+    'DTEND:' + stamp(new Date(date.getTime() + 300000)),'SUMMARY:' + summary,
+    'BEGIN:VALARM','TRIGGER:PT0M','ACTION:DISPLAY','DESCRIPTION:' + summary,
+    'END:VALARM','END:VEVENT','END:VCALENDAR',''
+  ].join('\r\n');
+}
+
+function exportCalendar(date) {
+  if (!Number.isFinite(date.getTime()) || date <= new Date() || date >= deadline) {
+    byId('date-form').hidden = false;
+    byId('status').textContent = '请选择一个未来的时间，并安排在截止日期当天之前。';
+    byId('date').focus();
+    return;
+  }
+  const blob = new Blob([makeCalendar(date, reminderTitle)], {type:'text/calendar;charset=utf-8'});
+  const file = new File([blob], 'notice-reminder.ics', {type:'text/calendar'});
+  const shareButton = byId('share-calendar');
+  byId('calendar-fallback').hidden = false;
+  byId('calendar-details').textContent = '如果预览窗口拦住了下载，可以在手机日历手动新建「' + reminderTitle + '」，时间设为 ' + displayTime(date) + '，提醒选「事件开始时」。';
+  shareButton.hidden = !navigator.canShare?.({files:[file]});
+  shareButton.onclick = async () => {
+    try {
+      await navigator.share({files:[file]});
+    } catch (error) {
+      if (error.name !== 'AbortError') byId('status').textContent = '此窗口无法分享文件，请按下方信息手动添加。';
+    }
+  };
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'notice-reminder.ics';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  byId('status').textContent = '如已下载日历文件，请打开并保存事件。';
+}
+
+for (const choice of ['read','skip','later']) byId(choice).onclick = () => choose(choice);
+byId('accept').onclick = () => exportCalendar(suggested);
+byId('change').onclick = () => {
+  byId('date').value = dateValue(suggested);
+  byId('date-form').hidden = false;
+  byId('date').focus();
+};
+byId('decline').onclick = () => {
+  byId('reminder').hidden = true;
+  byId('calendar-fallback').hidden = true;
+  byId('status').textContent = '本次无需提醒。';
+  byId('reset').focus();
+};
+byId('reset').onclick = () => {
+  byId('result').hidden = true;
+  byId('choices').hidden = false;
+  byId('read').focus();
+};
+byId('date-form').onsubmit = event => {
+  event.preventDefault();
+  exportCalendar(new Date(byId('date').value + '+08:00'));
+};
+
+const storageKey = 'notice-decoder-inbox-v1';
+let ocrLibrary;
+function loadOCR() {
+  ocrLibrary ??= new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js';
+    script.onload = () => resolve(window.Tesseract);
+    script.onerror = () => { script.remove(); ocrLibrary = undefined; reject(new Error('无法加载图片识别组件')); };
+    document.head.append(script);
+  });
+  return ocrLibrary;
+}
+
+async function readImages(files, status) {
+  const engine = await loadOCR();
+  const worker = await engine.createWorker(['chi_sim', 'eng'], 1, {
+    workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/worker.min.js',
+    corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@6.0.0'
+  });
+  try {
+    const results = [];
+    for (const [index, file] of files.entries()) {
+      status.textContent = '正在识别第 ' + (index + 1) + ' / ' + files.length + ' 张截图…';
+      const {data} = await worker.recognize(file);
+      const value = data.text.replace(/(?<=\p{Script=Han})[ \t]+(?=\p{Script=Han})/gu, '').trim();
+      if (!value) throw new Error('第 ' + (index + 1) + ' 张截图没有识别出文字。');
+      results.push(value);
+    }
+    return results;
+  } finally {
+    await worker.terminate();
+  }
+}
+let notices = [];
+try {
+  const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+  if (Array.isArray(saved)) notices = saved.filter(item => item && typeof item.text === 'string');
+} catch {
+  byId('inbox-status').textContent = '无法读取本地记录。';
+}
+
+for (const tab of ['my', 'demo']) {
+  byId(tab + '-tab').onclick = () => {
+    for (const name of ['my', 'demo']) {
+      byId(name + '-tab').classList.toggle('primary', name === tab);
+      byId(name + '-tab').setAttribute('aria-pressed', String(name === tab));
+    }
+    byId('inbox').hidden = tab !== 'my';
+    byId('demo').hidden = tab !== 'demo';
+  };
+}
+
+function add(parent, tag, content, className) {
+  const element = document.createElement(tag);
+  element.textContent = content;
+  if (className) element.className = className;
+  parent.append(element);
+  return element;
+}
+
+function saveNotices() {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(notices));
+    byId('inbox-status').textContent = '';
+  } catch {
+    byId('inbox-status').textContent = '浏览器无法保存记录，刷新后可能丢失。';
+  }
+}
+
+function renderInbox() {
+  const list = byId('inbox-list');
+  list.replaceChildren();
+  for (const notice of notices) {
+    const lines = notice.text.split(/\n|(?<=[。！？；])/u).map(line => line.trim()).filter(Boolean);
+    const title = lines[0].length > 64 ? lines[0].slice(0, 64) + '…' : lines[0];
+    const audience = lines.find(line => /面向|适用对象|参加对象|适用于|受影响/.test(line));
+    const due = lines.filter(line => /截止|截至|最迟|不晚于/.test(line));
+    const tasks = lines.filter(line => /请|须|需要|应当|务必/.test(line)).slice(0, 6);
+    const card = add(list, 'article', '', 'card');
+    add(card, 'h2', title);
+    add(card, 'p', audience || '适用对象待确认。', 'notice-text muted');
+    if (notice.fromImages) add(card, 'p', '包含截图识别结果，请核对原图中的日期和要求。', 'muted');
+    const actions = add(card, 'div', '', 'actions');
+    for (const [state, label] of [['read','现在看'],['skip','直接跳过'],['later','晚点再决定']]) {
+      const button = add(actions, 'button', label, state === 'read' ? 'primary' : '');
+      button.setAttribute('aria-pressed', String(notice.state === state));
+      button.onclick = () => { notice.state = state; saveNotices(); renderInbox(); };
+    }
+    if (notice.state === 'skip') { add(card, 'p', '已跳过这条通知。'); continue; }
+    if (notice.state === 'read') {
+      add(card, 'h3', '我要做什么？');
+      add(card, 'p', tasks.join('\n') || '请查看原文，确认是否有待办。', 'notice-text');
+      add(card, 'h3', '最晚什么时候？');
+      add(card, 'p', due.join('\n') || '未识别到明确的截止时间。', 'notice-text');
+      const original = add(card, 'details', '');
+      add(original, 'summary', '查看通知原文');
+      add(original, 'p', notice.text, 'notice-text');
+    }
+    if (notice.state === 'later') add(card, 'p', '已暂缓查看，可以随时回来打开。');
+    if (notice.state === 'later' || (notice.state === 'read' && due.length)) {
+      const form = add(card, 'form', '');
+      const label = add(form, 'label', '提醒时间（北京时间）');
+      const input = add(label, 'input', '');
+      input.type = 'datetime-local';
+      input.required = true;
+      add(form, 'p', '请根据原文确认提醒时间早于相关截止。', 'muted');
+      add(form, 'button', '导出日历提醒', 'primary').type = 'submit';
+      const status = add(form, 'p', '', 'muted');
+      status.setAttribute('role', 'status');
+      form.onsubmit = event => {
+        event.preventDefault();
+        const time = new Date(input.value + '+08:00');
+        if (!Number.isFinite(time.getTime()) || time <= new Date()) {
+          status.textContent = '请选择未来的提醒时间。';
+          return;
+        }
+        const calendarTitle = (notice.state === 'later' ? '查看通知' : '处理通知') + '：' + title;
+        const file = new File([makeCalendar(time, calendarTitle)], 'notice-reminder.ics', {type:'text/calendar'});
+        const url = URL.createObjectURL(file);
+        const link = add(form, 'a', '下载日历文件');
+        link.href = url;
+        link.download = file.name;
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+        status.textContent = '请在手机日历打开并保存事件。' + calendarTitle + '，' + displayTime(time) + '。';
+      };
+    }
+  }
+}
+
+byId('inbox-form').onsubmit = async event => {
+  event.preventDefault();
+  const input = byId('notice-input');
+  const images = byId('notice-images');
+  const status = byId('inbox-status');
+  const submit = event.currentTarget.querySelector('button[type=submit]');
+  if (submit.disabled) return;
+  const value = input.value.trim();
+  const files = Array.from(images.files);
+  if (!value && !files.length) { status.textContent = '请粘贴文字或选择截图。'; return; }
+  if (files.length > 4 || files.some(file => !/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 10 * 1024 * 1024)) {
+    status.textContent = '请选择最多 4 张 PNG、JPG 或 WebP 图片，每张不超过 10 MB。';
+    return;
+  }
+  submit.disabled = input.disabled = images.disabled = true;
+  try {
+    if (files.length) status.textContent = '正在加载图片识别，首次可能需要稍等…';
+    const recognized = files.length ? await readImages(files, status) : [];
+    const combined = [...new Set([value, ...recognized].filter(Boolean))].join('\n\n');
+    notices.unshift({text:combined, state:'', fromImages:files.length > 0});
+    input.value = images.value = '';
+    saveNotices();
+    renderInbox();
+  } catch {
+    status.textContent = '截图识别未完成。请检查网络、换一张清晰截图，或粘贴截图里的文字后重新提交。';
+  } finally {
+    submit.disabled = input.disabled = images.disabled = false;
+  }
+};
+renderInbox();
+</script>
+</body>
+</html>
